@@ -172,5 +172,7 @@ function(input, output, session) {
         })
         
         session$allowReconnect(TRUE) # https://www.jianshu.com/p/24b24274bcc4
+        options(shiny.sanitize.errors = FALSE)
 }
+
 
