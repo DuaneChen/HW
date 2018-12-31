@@ -1,7 +1,7 @@
 library(shiny)
 library(ggplot2)
 library(derivmkts)
-library(tidyverse)
+library(magrittr)
 
 function(input, output, session) {
         
