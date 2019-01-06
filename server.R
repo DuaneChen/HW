@@ -1,7 +1,8 @@
-library(shiny)
+(shiny)
 library(ggplot2)
 library(derivmkts)
 library(magrittr)
+library(reshape2)
 
 function(input, output, session) {
         
@@ -17,7 +18,7 @@ function(input, output, session) {
         #         # res <- list(call_eu=round(call_eu@price,4),call_am=round(call_am@price,4),put_eu=round(put_eu@price,4),put_am=round(put_am@price,4))
         #         #res <- list(call_eu=round(call_eu@price,4),call_am=round(call_am@price,4),put_eu=round(put_eu@price,4),put_am=round(put_am@price,4))
         # }
-
+        
         # Generate Binomial values
         Binomial <- function(S,K,t,sigma,rf,n) {
                 sigma <- sigma/100
@@ -102,7 +103,7 @@ function(input, output, session) {
                 t <- input$maturity
                 sigma <- input$volatility
                 rf <- input$riskfreerate
-                n <- c(1,3,5,7,10,100,1000,2000,4000)
+                n <- c(1,3,5,7,10,100,500,1000)
                 res <- data.frame()
                 for (i in 1:length(n)) {
                         temp <-converge(S,K,t,sigma,rf,n[i])
@@ -111,39 +112,68 @@ function(input, output, session) {
                 temp <- c("","","","")
                 res <- rbind(res,temp)
                 colnames(res) <- c("Call Price", "BS Call", "Put Price", "BS Put")
-                rownames(res) <- c("1","3","5","7","10","100","1000","2000","4000",".")
+                rownames(res) <- c("1","3","5","7","10","100","500","1000",".")
                 t(res)
         }, rownames = TRUE)
         
         # Plot Binomial Model converge to BS Model by time
-        output$plot_price_time <- renderPlot({
+        output$plot_price_converge_call <- renderPlot({
                 S <- input$stockprice
                 K <- input$strike
                 t <- input$maturity
                 sigma <- input$volatility
                 rf <- input$riskfreerate
-                n <- c(1,3,5,7,10,100,1000,2000,4000)
+                n <- seq(1,100,1)
                 res <- data.frame()
                 for (i in 1:length(n)) {
                         temp <-converge(S,K,t,sigma,rf,n[i])
                         res <- rbind(res,temp)
                 }
-                temp <- c("","","","")
-                res <- rbind(res,temp)
-                colnames(res) <- c("Call Price", "BS Call", "Put Price", "BS Put")
-                rownames(res) <- c("1","3","5","7","10","100","1000","2000","4000",".")
-                res<- t(res)
-                
-                
+                res <- cbind(n,res)
+                colnames(res) <- c("n","Binomial Call", "Black Scholes Call", "Binomial Put", "Black Scholes Put")
+                a <- res[,c(1,2,3)]
+                a <- melt(a,id.vars="n")
+                ggplot(a, aes(x=n,y=value, group=variable))+
+                        geom_line(aes(linetype=variable,color=variable,size=variable))+
+                        scale_color_manual(values=c("#FF9933", "#0033CC"))+
+                        scale_linetype_manual(values=c("solid", "twodash"))+
+                        scale_size_manual(values=c(1.15, 1.08))+
+                        xlab("N period") +
+                        ylab("Call Price") +
+                        theme_minimal()+ theme(legend.title = element_blank(), text = element_text(size=15))
         })
         
         
-        
+        output$plot_price_converge_put <- renderPlot({
+                S <- input$stockprice
+                K <- input$strike
+                t <- input$maturity
+                sigma <- input$volatility
+                rf <- input$riskfreerate
+                n <- seq(1,100,1)
+                res <- data.frame()
+                for (i in 1:length(n)) {
+                        temp <-converge(S,K,t,sigma,rf,n[i])
+                        res <- rbind(res,temp)
+                }
+                res <- cbind(n,res)
+                colnames(res) <- c("n","Binomial Call", "Black Scholes Call", "Binomial Put", "Black Scholes Put")
+                a <- res[,c(1,4,5)]
+                a <- melt(a,id.vars="n")
+                ggplot(a, aes(x=n,y=value, group=variable))+
+                        geom_line(aes(linetype=variable,color=variable,size=variable))+
+                        scale_color_manual(values=c("#FF9933", "#0033CC"))+
+                        scale_linetype_manual(values=c("solid", "twodash"))+
+                        scale_size_manual(values=c(1.15, 1.08))+
+                        xlab("N period") +
+                        ylab("Put Price") +
+                        theme_minimal()+ theme(legend.title = element_blank(), text = element_text(size=15))
+        })
         
         # Plot BS call payoff
         spots <- reactive(seq(0.2*input$stockprice, 1.8*input$stockprice, 0.01*input$stockprice))
         results <- reactive(BS(spots(), input$strike, input$maturity, input$volatility, input$riskfreerate))
-       
+        
         output$callPlot_BS <- renderPlot({
                 valueC_BS <- results()$bscall
                 payoffC_BS <- pmax(spots() - input$strike, 0)
@@ -157,7 +187,7 @@ function(input, output, session) {
         })
         
         
-       
+        
         # Plot BS put payoff
         output$putPlot_BS <- renderPlot({
                 valueC_BS <- results()$bsput
