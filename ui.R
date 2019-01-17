@@ -1,3 +1,6 @@
+library(shiny)
+library(plotly)
+
 fluidPage(
         titlePanel("Binomial Model and Black - Scholes Model"),
         tabsetPanel(
