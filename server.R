@@ -3,6 +3,8 @@ library(ggplot2)
 library(derivmkts)
 library(magrittr)
 library(reshape2)
+library(plotly)
+
 
 function(input, output, session) {
         
@@ -66,6 +68,51 @@ function(input, output, session) {
                                   Put.Price=round(put_eu,4),BS.Put.Price=round(bsput,4))
         }
         
+        # implied segma
+        
+        implied<- function(P,S,K,t,rf){
+                P <- input$optionprice2
+                S <- input$stockprice2
+                K <- input$strike2
+                t <- input$maturity2
+                rf <- input$riskfreerate2
+                # call_implied<- EuropeanOptionImpliedVolatility("call",P,S,K,0,rf/100,t,0)[[1]]
+                # put_implied<- EuropeanOptionImpliedVolatility("put",P,S,K,0,rf/100,t,0)[[1]]
+                # res<- c(call_implied*100,put_implied*100)
+                
+                C_SminuK = S-K
+                if(P < C_SminuK || P < 0 || P > S){
+                        #warning("Implied volatility is undefined because price is outside theoretical bounds")
+                        call = NA
+                } else if(P == C_SminuK || P== 0){
+                        ## if price equals intrinsic value, volatility is zero
+                        call = NA
+                } else if(K == 0 && P!=S){
+                        ## warning("Implied volatility is undefined because price is outside theoretical bounds")
+                        call = NA
+                } else{
+                        call = bscallimpvol(S,K, rf/100, t, 0, P)
+                }
+                
+                P_SminuK = K-S
+                if(P < P_SminuK || P < 0 || P > S){
+                        #warning("Implied volatility is undefined because price is outside theoretical bounds")
+                        put = NA
+                } else if(P == P_SminuK || P== 0){
+                        ## if price equals intrinsic value, volatility is zero
+                        put = NA
+                } else if(K == 0 && P!=S){
+                        ## warning("Implied volatility is undefined because price is outside theoretical bounds")
+                        put = NA
+                } else{
+                        put = bsputimpvol(S,K, rf/100, t, 0, P)   
+                }
+                res<- c(call*100,put*100)
+                
+        }
+        
+        
+        
         #Binomial values
         output$price_binomial <- renderTable({
                 #Get inputs
@@ -96,6 +143,39 @@ function(input, output, session) {
                 t(Pricetable_BS)
         }, rownames = TRUE)
         
+        
+        #implied segma Table
+        output$price_implied <- renderTable({
+                #Get inputs
+                P <- input$optionprice
+                S <- input$stockprice
+                K <- input$strike
+                t <- input$maturity
+                rf <- input$riskfreerate
+                #K <- K * exp(-rf * t)
+                # SminuK = S-K
+                # SplusK = S+K
+                # 
+                # if (P < SminuK || P < 0 || P > S){
+                #         warning("Implied volatility is undefined because price is outside theoretical bounds")
+                #         call = NA
+                # } 
+                # if (P == SminuK || P == 0){ 
+                #         ## if price equals intrinsic value, volatility is zero
+                #         call = NA
+                # } 
+                # if (K == 0 && P != S) {
+                #         ## if K is 0, option price must equal stock price
+                #         warning("Implied volatility is undefined because price is outside theoretical bounds")
+                #         call = NA
+                # } 
+                
+                res <- implied(P,S,K,t,rf)
+                res <- data.frame(call=c(res[1]),put=c(res[2]),row.names = c("Implied Volatility (%)"))
+                t(res)
+        }, rownames = TRUE)
+        
+        
         # Binomial Model converge to BS Model by time
         output$price_time <- renderTable({
                 S <- input$stockprice
@@ -117,7 +197,7 @@ function(input, output, session) {
         }, rownames = TRUE)
         
         # Plot Binomial Model converge to BS Model by time
-        output$plot_price_converge_call <- renderPlot({
+        output$plot_price_converge_call <- renderPlotly({
                 S <- input$stockprice
                 K <- input$strike
                 t <- input$maturity
@@ -132,19 +212,14 @@ function(input, output, session) {
                 res <- cbind(n,res)
                 colnames(res) <- c("n","Binomial Call", "Black Scholes Call", "Binomial Put", "Black Scholes Put")
                 a <- res[,c(1,2,3)]
-                a <- melt(a,id.vars="n")
-                ggplot(a, aes(x=n,y=value, group=variable))+
-                        geom_line(aes(linetype=variable,color=variable,size=variable))+
-                        scale_color_manual(values=c("#FF9933", "#0033CC"))+
-                        scale_linetype_manual(values=c("solid", "twodash"))+
-                        scale_size_manual(values=c(1.15, 1.08))+
-                        xlab("N period") +
-                        ylab("Call Price") +
-                        theme_minimal()+ theme(legend.title = element_blank(), text = element_text(size=15))
+                colnames(a) <- c("n","BiCall",'BSCall')
+                plot_ly(a, x=~n,y=~BiCall, name = "Binomial Call", type = 'scatter', mode = 'lines',line = list(color = 'rgb(22, 96, 167)', width = 2.5))%>%
+                        add_trace(x=~n,y=~BSCall, name = "Black Scholes Call", type = 'scatter',line = list(color = 'rgb(205, 12, 24)', width = 2.5, dash = 'dash'))%>%
+                        layout(title="Binomial Model converge to Black - Scholes Model by time",
+                               xaxis = list(title ="N Period"), yaxis = list(title ="Call Price"),hovermode = 'x')
         })
         
-        
-        output$plot_price_converge_put <- renderPlot({
+        output$plot_price_converge_put <- renderPlotly({
                 S <- input$stockprice
                 K <- input$strike
                 t <- input$maturity
@@ -159,15 +234,11 @@ function(input, output, session) {
                 res <- cbind(n,res)
                 colnames(res) <- c("n","Binomial Call", "Black Scholes Call", "Binomial Put", "Black Scholes Put")
                 a <- res[,c(1,4,5)]
-                a <- melt(a,id.vars="n")
-                ggplot(a, aes(x=n,y=value, group=variable))+
-                        geom_line(aes(linetype=variable,color=variable,size=variable))+
-                        scale_color_manual(values=c("#FF9933", "#0033CC"))+
-                        scale_linetype_manual(values=c("solid", "twodash"))+
-                        scale_size_manual(values=c(1.15, 1.08))+
-                        xlab("N period") +
-                        ylab("Put Price") +
-                        theme_minimal()+ theme(legend.title = element_blank(), text = element_text(size=15))
+                colnames(a) <- c("n","BiPut",'BSPut')
+                plot_ly(a,x=~n, y=~BiPut, name = "Binomial Put", type = 'scatter', mode = 'lines',line = list(color = 'rgb(22, 96, 167)', width = 2.5))%>%
+                        add_trace(x=~n,y=~BSPut, name = "Black Scholes Put", type = 'scatter',line = list(color = 'rgb(205, 12, 24)', width = 2.5, dash = 'dash'))%>%
+                        layout(title="Binomial Model converge to Black - Scholes Model by time",
+                               xaxis = list(title ="N Period"), yaxis = list(title ="Put Price"),hovermode = 'x')
         })
         
         # Plot BS call payoff
