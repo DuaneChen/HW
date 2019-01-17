@@ -8,19 +8,6 @@ library(plotly)
 
 function(input, output, session) {
         
-        # # Generate Binomial values
-        # Binomial <- function(S,K,t,sigma,rf,n) {
-        #         sigma <- sigma/100
-        #         rf <- rf/100
-        #         call_eu <- CRRBinomialTreeOption(TypeFlag = c("ce"), S, K, t, rf, 0, sigma, n, title = NULL, description = NULL)
-        #         call_am <- CRRBinomialTreeOption(TypeFlag = c("ca"), S, K, t, rf, 0, sigma, n, title = NULL, description = NULL)
-        #         put_eu <- CRRBinomialTreeOption(TypeFlag = c("pe"), S, K, t, rf, 0, sigma, n, title = NULL, description = NULL)
-        #         put_am <- CRRBinomialTreeOption(TypeFlag = c("pa"), S, K, t, rf, 0, sigma, n, title = NULL, description = NULL)
-        #         res <- list(call_eu=call_eu@price,call_am=call_am@price,put_eu=put_eu@price,put_am=put_am@price)
-        #         # res <- list(call_eu=round(call_eu@price,4),call_am=round(call_am@price,4),put_eu=round(put_eu@price,4),put_am=round(put_am@price,4))
-        #         #res <- list(call_eu=round(call_eu@price,4),call_am=round(call_am@price,4),put_eu=round(put_eu@price,4),put_am=round(put_am@price,4))
-        # }
-        
         # Generate Binomial values
         Binomial <- function(S,K,t,sigma,rf,n) {
                 sigma <- sigma/100
@@ -50,6 +37,7 @@ function(input, output, session) {
                 res <- list(bscall=round(bscall,4),bsput=round(bsput,4),d1=round(d1,4),d2=round(d2,4))
         }
         
+        
         # Generat Binomial Model converge to BS Model by time
         
         converge<- function(S,K,t,sigma,rf,n){
@@ -76,42 +64,21 @@ function(input, output, session) {
                 K <- input$strike2
                 t <- input$maturity2
                 rf <- input$riskfreerate2
-                # call_implied<- EuropeanOptionImpliedVolatility("call",P,S,K,0,rf/100,t,0)[[1]]
-                # put_implied<- EuropeanOptionImpliedVolatility("put",P,S,K,0,rf/100,t,0)[[1]]
-                # res<- c(call_implied*100,put_implied*100)
                 
-                C_SminuK = S-K
-                if(P < C_SminuK || P < 0 || P > S){
-                        #warning("Implied volatility is undefined because price is outside theoretical bounds")
-                        call = NA
-                } else if(P == C_SminuK || P== 0){
-                        ## if price equals intrinsic value, volatility is zero
-                        call = NA
-                } else if(K == 0 && P!=S){
-                        ## warning("Implied volatility is undefined because price is outside theoretical bounds")
-                        call = NA
-                } else{
-                        call = bscallimpvol(S,K, rf/100, t, 0, P)
-                }
+                call_implied <- NA
+                call_implied <- bscallimpvol(S,K, rf/100, t, 0, P)
+                if(is.numeric(call_implied)){
+                        call_implied =call_implied
+                }else {call_implied = NA}
                 
-                P_SminuK = K-S
-                if(P < P_SminuK || P < 0 || P > S){
-                        #warning("Implied volatility is undefined because price is outside theoretical bounds")
-                        put = NA
-                } else if(P == P_SminuK || P== 0){
-                        ## if price equals intrinsic value, volatility is zero
-                        put = NA
-                } else if(K == 0 && P!=S){
-                        ## warning("Implied volatility is undefined because price is outside theoretical bounds")
-                        put = NA
-                } else{
-                        put = bsputimpvol(S,K, rf/100, t, 0, P)   
-                }
-                res<- c(call*100,put*100)
+                put_implied <- NA
+                put_implied <- bsputimpvol(S,K, rf/100, t, 0, P)
+                if(is.numeric(put_implied)){
+                        put_implied = put_implied
+                }else {put_implied = NA}
                 
+                res<- c(call_implied*100,put_implied*100)
         }
-        
-        
         
         #Binomial values
         output$price_binomial <- renderTable({
@@ -152,24 +119,6 @@ function(input, output, session) {
                 K <- input$strike
                 t <- input$maturity
                 rf <- input$riskfreerate
-                #K <- K * exp(-rf * t)
-                # SminuK = S-K
-                # SplusK = S+K
-                # 
-                # if (P < SminuK || P < 0 || P > S){
-                #         warning("Implied volatility is undefined because price is outside theoretical bounds")
-                #         call = NA
-                # } 
-                # if (P == SminuK || P == 0){ 
-                #         ## if price equals intrinsic value, volatility is zero
-                #         call = NA
-                # } 
-                # if (K == 0 && P != S) {
-                #         ## if K is 0, option price must equal stock price
-                #         warning("Implied volatility is undefined because price is outside theoretical bounds")
-                #         call = NA
-                # } 
-                
                 res <- implied(P,S,K,t,rf)
                 res <- data.frame(call=c(res[1]),put=c(res[2]),row.names = c("Implied Volatility (%)"))
                 t(res)
@@ -197,6 +146,7 @@ function(input, output, session) {
         }, rownames = TRUE)
         
         # Plot Binomial Model converge to BS Model by time
+        
         output$plot_price_converge_call <- renderPlotly({
                 S <- input$stockprice
                 K <- input$strike
@@ -241,13 +191,14 @@ function(input, output, session) {
                                xaxis = list(title ="N Period"), yaxis = list(title ="Put Price"),hovermode = 'x')
         })
         
+        
         # Plot BS call payoff
-        spots <- reactive(seq(0.2*input$stockprice, 1.8*input$stockprice, 0.01*input$stockprice))
-        results <- reactive(BS(spots(), input$strike, input$maturity, input$volatility, input$riskfreerate))
+        spots <- reactive(seq(0.2*input$stockprice2, 1.8*input$stockprice2, 0.01*input$stockprice2))
+        results <- reactive(BS(spots(), input$strike2, input$maturity2, input$volatility2, input$riskfreerate2))
         
         output$callPlot_BS <- renderPlot({
                 valueC_BS <- results()$bscall
-                payoffC_BS <- pmax(spots() - input$strike, 0)
+                payoffC_BS <- pmax(spots() - input$strike2, 0)
                 dfC_BS <- data.frame(spots(), valueC_BS, payoffC_BS)
                 ggplot(dfC_BS, aes(spots())) +
                         geom_line(aes(y = valueC_BS, color = "Call Value")) +
@@ -262,7 +213,7 @@ function(input, output, session) {
         # Plot BS put payoff
         output$putPlot_BS <- renderPlot({
                 valueC_BS <- results()$bsput
-                payoffC_BS <- pmax(input$strike-spots(), 0)
+                payoffC_BS <- pmax(input$strike2-spots(), 0)
                 dfC_BS <- data.frame(spots(), valueC_BS, payoffC_BS)
                 ggplot(dfC_BS, aes(spots())) +
                         geom_line(aes(y = valueC_BS, color = "Put Value")) +
